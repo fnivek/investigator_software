@@ -28,15 +28,15 @@ def print_hex_cb(data):
 # Callback to send out data about encoder speed
 def read_encoder(data):
     (direction, left_speed, right_speed) = unpack('<BHH', data)
-    left_speed *= -1 * (direction & 0x1)
-    right_speed *= -1 * ((direction & 0x2) >> 1)
-    print direction, left_speed, right_speed
+    if(direction & 0x1):
+        left_speed = -left_speed
+    if(direction & 0x2):
+        right_speed = -right_speed
 
     encoder_speed_pub.publish(EncoderSpeed(left_motor = left_speed, right_motor = right_speed))
 
 def read_sonar(data):
     sonar = unpack('<HHHH', data)
-    print sonar
 
 class Register:
     # RnW - True if read only False if Write only

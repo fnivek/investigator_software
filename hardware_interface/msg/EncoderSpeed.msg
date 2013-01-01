@@ -1,3 +1,3 @@
 # Message for reporting encoder speed
-uint16 left_motor
-uint16 right_motor
+float64 left_motor
+float64 right_motor
