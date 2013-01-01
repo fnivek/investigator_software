@@ -50,7 +50,9 @@ class Comms:
                 else:
                     self.iface = spidev.SpiDev()
                     self.iface.open(1, 0)
-                    self.iface.max_speed_hz = 10000
+                    # Mode 0b01 works with MSP in mode 00
+                    self.iface.mode = 0b01	#CPHA = 0, CPPOL = 1
+                    self.iface.max_speed_hz = 5000
                     rospy.loginfo('Connected to spi')
                 break;
             except Exception as e:
@@ -75,7 +77,7 @@ class Comms:
         addr = addr | (req.RnW << 7)
         
         size = len(req.data)
-        read = ''
+        read = []
         write = [addr] + [ord(req.data[i]) for i in xrange(size)]
         with self.lock:
             self.cs[req.destination].value = 0
@@ -85,7 +87,9 @@ class Comms:
                 self.iface.flushInput()     # Ensure there is no pending data
                 self.iface.write(data)
             else:
-                read = self.iface.xfer(write)
+                for byte in write:
+                    read += self.iface.xfer([byte])
+                    time.sleep(0.000001)
             self.cs[req.destination].value = 1
 
         # TODO: Select correct destination CS
