@@ -1,0 +1,18 @@
+# Read not write
+bool RnW
+
+# Destination for the read or write
+uint8 MSP430=0
+uint8 IMU=1
+uint8 destination
+
+# Address of register to access
+uint8 addr
+
+# Array of data to send in 8 bit bytes
+uint8[] data
+
+----
+
+# Read data
+uint8[] data
