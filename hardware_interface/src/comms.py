@@ -2,10 +2,11 @@
 import rospy
 import serial
 import spidev
+import gpio
 import time
 import threading
 from struct import *
-from hardware_interface.srv import CommSrv, CommSrvResponse
+from hardware_interface.srv import CommSrv, CommSrvRequest, CommSrvResponse
 
 class Comms:
     def __init__(self):
@@ -19,6 +20,26 @@ class Comms:
         # Port is the serial port name to connect to which will be different based on emulate odroid 
         self.port = rospy.get_param('~port', '/dev/serial/by-id/usb-Texas_Instruments_Texas_Instruments_MSP-FET430UIF_B5FF4A8DEDD03815-if00')
         
+        # Get gpio
+        self.gpio = {CommSrvRequest.IMU : 21,
+                     CommSrvRequest.MSP430 : 18}
+        self.cs = {CommSrvRequest.IMU : None,
+                     CommSrvRequest.MSP430 : None}
+        for device, pin in self.gpio.iteritems():
+            try:
+                self.cs[device] = gpio.GPIO(pin)
+                self.cs[device].direction = 'out'
+            except IOError as err:
+                if err.errno == 13:
+                    # This is an expected error, the udev rule is slower than python
+                    time.sleep(0.1)
+                    self.cs[device] = gpio.GPIO(pin)
+                    self.cs[device].direction = 'out'
+                else:
+                    # This is an unexpected IOError
+                    rospy.logerr('Unexpected IOError when accessing gpio')
+                    raise
+
         # Attempt to connect to the serial port
         rospy.loginfo('Attempting to connect to serial interface')
         while not rospy.is_shutdown():
@@ -29,7 +50,7 @@ class Comms:
                 else:
                     self.iface = spidev.SpiDev()
                     self.iface.open(1, 0)
-                    self.iface.max_speed_hz = 9600
+                    self.iface.max_speed_hz = 10000
                     rospy.loginfo('Connected to spi')
                 break;
             except Exception as e:
@@ -52,12 +73,12 @@ class Comms:
         # Set the RnW bit in the address
         addr = req.addr & 0x7F
         addr = addr | (req.RnW << 7)
-
         
         size = len(req.data)
         read = ''
         write = [addr] + [ord(req.data[i]) for i in xrange(size)]
         with self.lock:
+            self.cs[req.destination].value = 0
             if self.emulate_odroid:
                 # Pack the data and write data
                 data = pack('<B' + 'B' * size, *write)
@@ -65,6 +86,7 @@ class Comms:
                 self.iface.write(data)
             else:
                 read = self.iface.xfer(write)
+            self.cs[req.destination].value = 1
 
         # TODO: Select correct destination CS
 
