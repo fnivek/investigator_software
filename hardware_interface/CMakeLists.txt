@@ -7,6 +7,12 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
+## Generate messages in the 'msg' folder
+add_message_files(
+	FILES
+	MotorPWM.msg
+)
+
 ## Generate services in the 'srv' folder
 add_service_files(
   FILES
