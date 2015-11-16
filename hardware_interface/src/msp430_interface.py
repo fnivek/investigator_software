@@ -2,8 +2,10 @@
 
 import rospy
 from hardware_interface.srv import CommSrv, CommSrvRequest
-from hardware_interface.msg import MotorPWM
-from struct import pack
+from hardware_interface.msg import MotorPWM, EncoderSpeed
+from struct import pack, unpack
+
+encoder_speed_pub = rospy.Publisher('encoder_speed', EncoderSpeed, queue_size = 1)
 
 # pack up pwm signals
 def pack_pwm(left_pwm, right_pwm):
@@ -23,6 +25,14 @@ def pack_pwm(left_pwm, right_pwm):
 def print_hex_cb(data):
     print [format(ord(i), "#04x") for i in data]
 
+# Callback to send out data about encoder speed
+def read_encoder(data):
+    (direction, left_speed, right_speed) = unpack('<BHH', data)
+    left_speed *= -1 * (direction & 0x1)
+    right_speed *= -1 * ((direction & 0x2) >> 1)
+    print direction, left_speed, right_speed
+
+    encoder_speed_pub.publish(EncoderSpeed(left_motor = left_speed, right_motor = right_speed))
 
 class Register:
     # RnW - True if read only False if Write only
@@ -73,7 +83,7 @@ class Register:
 
 class Msp430Interface:
     registers = {'SONAR'            : Register(True,    1,  8,  callback =  print_hex_cb),
-                 'ENCODERS_SPEED'   : Register(True,    2,  5,  callback =  print_hex_cb),
+                 'ENCODERS_SPEED'   : Register(True,    2,  5,  callback =  read_encoder),
                  'ENCODERS_POSITION': Register(True,    3,  8,  callback =  print_hex_cb),
                  'MOTORS'           : Register(False,   4,  9,  pack =      pack_pwm),
                  'SET_STATUS'       : Register(False,   5,  1),
