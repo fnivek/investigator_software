@@ -101,7 +101,7 @@ class Msp430Interface:
         rospy.Timer(rospy.Duration(1./25), self.read_values)        
 
         # Subscribers
-        self.left_wheel_pwm_sub = rospy.Subscriber("motor_pwm", MotorPWM, self.pwm_cb, queue_size = 1)
+        self.pwm_sub = rospy.Subscriber("motor_pwm", MotorPWM, self.pwm_cb, queue_size = 1)
     
     # Reads in all read only registers
     def read_values(self, event):
