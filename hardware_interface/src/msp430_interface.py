@@ -34,6 +34,10 @@ def read_encoder(data):
 
     encoder_speed_pub.publish(EncoderSpeed(left_motor = left_speed, right_motor = right_speed))
 
+def read_sonar(data):
+    sonar = unpack('<HHHH', data)
+    print sonar
+
 class Register:
     # RnW - True if read only False if Write only
     # address - mapping of the register
@@ -82,9 +86,9 @@ class Register:
                 data =          packed_data))
 
 class Msp430Interface:
-    registers = {'SONAR'            : Register(True,    1,  8,  callback =  print_hex_cb),
+    registers = {'SONAR'            : Register(True,    1,  8,  callback =  read_sonar),
                  'ENCODERS_SPEED'   : Register(True,    2,  5,  callback =  read_encoder),
-                 'ENCODERS_POSITION': Register(True,    3,  8,  callback =  print_hex_cb),
+                 'ENCODERS_POSITION': Register(True,    3,  8,  callback =  None),
                  'MOTORS'           : Register(False,   4,  9,  pack =      pack_pwm),
                  'SET_STATUS'       : Register(False,   5,  1),
                  'GET_STATUS'       : Register(True,    6,  1,  callback =  print_hex_cb)}
