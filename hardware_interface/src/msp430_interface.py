@@ -14,12 +14,12 @@ def pack_pwm(left_pwm, right_pwm):
     l_dir = 0                       
     if left_pwm < 0: l_dir = 1      
     r_dir = 0
-    if r_dir < 0: r_dir = 1
+    if right_pwm < 0: r_dir = 1
 
     # Set up direction for packing
     direction = l_dir | (r_dir << 1)
 
-    return pack('<Bff', direction, abs(left_pwm), abs(right_pwm))
+    return pack('<BHH', direction, abs(left_pwm), abs(right_pwm))
 
 # Print whatever was read in hex
 def print_hex_cb(data):
@@ -89,7 +89,7 @@ class Msp430Interface:
     registers = {'SONAR'            : Register(True,    1,  8,  callback =  read_sonar),
                  'ENCODERS_SPEED'   : Register(True,    2,  5,  callback =  read_encoder),
                  'ENCODERS_POSITION': Register(True,    3,  8,  callback =  None),
-                 'MOTORS'           : Register(False,   4,  9,  pack =      pack_pwm),
+                 'MOTORS'           : Register(False,   4,  5,  pack =      pack_pwm),
                  'SET_STATUS'       : Register(False,   5,  1),
                  'GET_STATUS'       : Register(True,    6,  1,  callback =  print_hex_cb)}
 
