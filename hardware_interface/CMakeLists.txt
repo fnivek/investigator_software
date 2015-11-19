@@ -12,12 +12,15 @@ add_message_files(
 	FILES
 	MotorPWM.msg
 	EncoderSpeed.msg
+	CommSingleWrite.msg
+	CommReadData.msg
 )
 
 ## Generate services in the 'srv' folder
 add_service_files(
   FILES
-  CommSrv.srv
+  CommSingleRead.srv
+  CommRepetitiveRead.srv
 )
 
 ## Generate added messages and services with any dependencies listed here

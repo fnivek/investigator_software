@@ -1,16 +1,15 @@
-# Read not write
-bool RnW
+# Non-repatative reads
 
 # Destination for the read or write
 uint8 MSP430=0
 uint8 IMU=1
-uint8 destination
+uint8 device
 
 # Address of register to access
 uint8 addr
 
-# Array of data to send in 8 bit bytes
-uint8[] data
+# Num of bytes to read
+uint8 size
 
 ----
 
