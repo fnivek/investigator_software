@@ -17,7 +17,7 @@ ENCODER_CLKS_TO_RADS_SEC = 2 * np.pi * FCPU / (898)
 class Motor:
     NUM_OUTPUTS = 2
     NUM_ERRORS = 3
-    MIN_SPEED = 0.5 #Rad/s
+    MIN_SPEED = 0.6 #Rad/s
     # Coefs should be a numpy array where the first NUM_OUTPUTS entries are the coefficents of
     #   the outputs and the next NUM_ERRORS entries should be the feedback coefficents
     #   i.e. out[n] = c0*out[n-1] + c1 * out[n-2] + c2 * feedback[n] + c3 * feedback[n-1] + c4 * feedback[n-2]
@@ -49,7 +49,7 @@ class Motor:
         self.errors.append(self.desired_speed - self.last_avg_feedback)
 
     def set_desired_speed(self, speed):
-        if abs(speed) > Motor.MIN_SPEED:
+        if abs(speed) >= Motor.MIN_SPEED:
             self.desired_speed = speed
         else:
             self.desired_speed = 0
