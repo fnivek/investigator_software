@@ -90,8 +90,10 @@ class Comms:
                 rospy.logerr('Failed to connect to serial interface\n\tException: %s' % str(e))
                 time.sleep(1)
 
-        # Lock for muatating repetitive_reads deque
-        self.lock = threading.Lock()
+        # Lock for muatating read deques
+        self.repetitive_lock = threading.Lock()
+        self.single_lock = threading.Lock()
+
 
         # Using deques because they are thread safe
         #   TODO: Use more efficent types that are still thread safe
@@ -122,31 +124,35 @@ class Comms:
     def run(self):
         while not rospy.is_shutdown():
             # Handle repetitive reads
-            with self.lock:
+            with self.repetitive_lock:
                 for read in self.repetitive_reads:
                     data = self.spi_read_write(read)
                     if read.pub:
                         read.pub.publish(data)
 
             # Itterate through all single read and writes
+
             while len(self.singles_deque):
                 single = self.singles_deque.popleft()
                 single.data = self.spi_read_write(single)
                 if single.RnW:
-                    self.completed_single_reads.append((single.uid, single.data))
+                    with self.single_lock:
+                        self.completed_single_reads.append((single.uid, single.data))
 
 
     def single_read_cb(self, req):
         single = Single(True, req.device, req.addr, req.size)
         uid = single.uid
+
         self.singles_deque.append(single)
 
         # Wait until the run function has processed the read or 5 seconds have passed
         now = rospy.get_time()
         while rospy.get_time() - now < 5.0:
-            for item in self.completed_single_reads:
-                if item[0] == uid:
-                    return CommSingleReadResponse(item[1])
+            with self.single_lock:
+                for item in self.completed_single_reads:
+                    if item[0] == uid:
+                        return CommSingleReadResponse(item[1])
 
         return None
 
@@ -172,10 +178,10 @@ class Comms:
                 failure_code = CommRepetitiveReadResponse.NO_ID_MATCH)
         else:
             if req.add:
-                with self.lock:
+                with self.repetitive_lock:
                     self.repetitive_reads.append(single)
             else:
-                with self.lock:
+                with self.repetitive_lock:
                     self.repetitive_reads.remove(existing_single)
 
             return CommRepetitiveReadResponse(
@@ -194,7 +200,7 @@ class Comms:
         size = len(req.data)
         read = []
         write = [addr] + [ord(req.data[i]) for i in xrange(size)]
-        with self.lock:
+        with self.repetitive_lock:
             self.cs[req.destination].value = 0
             
             for byte in write:
