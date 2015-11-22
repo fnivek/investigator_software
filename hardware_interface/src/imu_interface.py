@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from hardware_interface.srv import CommSrv, CommSrvRequest
+from hardware_interface.srv import CommSingleRead,      CommSingleReadRequest,      CommSingleReadResponse
 
 class ImuInterface:
     # Dictionary of register names and adresses
@@ -31,43 +31,46 @@ class ImuInterface:
     def __init__(self):
         rospy.init_node('imu_interface', anonymous=False)
 
+
+        # Comms service proxy
         # Wait for service to come up
         rospy.loginfo('Waiting for comms...')
-        while not rospy.is_shutdown():
-            try:
-                rospy.wait_for_service('comms', 1)
-                break
-            except Exception as e:
-                rospy.logerr('Timeout waiting for comms service')
+        for service in ['comm_single_read', 'comm_repetitive_read']:
+            while not rospy.is_shutdown():
+                try:
+                    rospy.wait_for_service(service, 1)
+                    break
+                except Exception as e:
+                    rospy.logerr('Timeout waiting for %s service' % service)
 
-        self.comms_proxy = rospy.ServiceProxy('comms', CommSrv)
+
+        self.single_read_proxy = rospy.ServiceProxy('comm_single_read', CommSingleRead)
         rospy.loginfo('comms service up')
 
         # Disable I2C
         """
-        self.comms_proxy(CommSrvRequest(
+        self.single_read_proxy(CommSingleReadRequest(
             RnW =           False,
-            destination =   CommSrvRequest.IMU,
+            device =   CommSingleReadRequest.IMU,
             addr = ImuInterface.registers['CTRL4_C'],
-            data =          [0x04]))
+            size =          [0x04]))
         """
         
         """
         for i in xrange(0x1, 0x6C):
-            read = self.comms_proxy(CommSrvRequest(
+            read = self.single_read_proxy(CommSingleReadRequest(
                 RnW =           True,
-                destination =   CommSrvRequest.IMU,
+                device =   CommSingleReadRequest.IMU,
                 addr =          i,
-                data =          [0x55]))
+                size =          [0x55]))
             print format(i, '#04x'), '\t\t:\t', format(ord(read.data), '#04x'), ord(read.data)
 
         """
         while not rospy.is_shutdown():
-            read = self.comms_proxy(CommSrvRequest(
-                RnW =           True,
-                destination =   CommSrvRequest.IMU,
-                addr =          ImuInterface.registers['WHO_AM_I'],
-                data =          [0x55]))
+            read = self.single_read_proxy(CommSingleReadRequest(
+                device =   CommSingleReadRequest.IMU,
+                addr =     ImuInterface.registers['WHO_AM_I'],
+                size =     1))
             print format(ord(read.data), '#04x'), '\t:\t',  ord(read.data)
         
 if __name__ == '__main__':
