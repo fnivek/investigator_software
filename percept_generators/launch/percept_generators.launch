@@ -1,0 +1,46 @@
+<launch>
+	<!-- args -->
+	<arg name="use_kinect" default="1"/>
+	<!-- Height is inverted, towards the sky is negative, towards the ground is positive -->
+	<arg name="min_pc_height" default="-0.5"/>
+	<arg name="max_pc_height" default="0.05"/>
+	<!---<arg name="euclidean_cluster_tolerance" default="0.05"/>
+	<arg name="euclidean_min_cluster_size" default="100"/>	
+	<arg name="euclidean_max_cluster_size" default="1048575"/>-->
+	<arg name="voxel_size" default="0.05"/>
+
+	<!-- Static transforms -->
+	<node pkg="tf" type="static_transform_publisher" name="kinect_to_base_link"
+	     args="0 0 0.065 0 0 0 base_link camera_link 100" />  
+
+	<node pkg="tf" type="static_transform_publisher" name="front_sonar_to_base_link"
+	     args="0.1524 0 0 0 0 0 base_link front_sonar_link 100" /> 
+
+	<node pkg="tf" type="static_transform_publisher" name="back_sonar_to_base_link"
+	     args="-0.1524 0 0 3.14159265359 0 0 base_link back_sonar_link 100" /> 
+
+	<node pkg="tf" type="static_transform_publisher" name="front_right_sonar_to_base_link"
+	     args="0.0762 -0.13198227153 0 -0.52359877559 0 0 base_link front_right_sonar_link 100" /> 
+
+	<node pkg="tf" type="static_transform_publisher" name="front_left_sonar_to_base_link"
+	     args="0.0762 0.13198227153 0 0.52359877559 0 0 base_link front_left_sonar_link 100" /> 
+
+	<group ns="percepts">
+		<include if="$(arg use_kinect)" file="$(find openni_launch)/launch/openni.launch"/>
+
+		<!--<node pkg="percept_generators" type="encoder_to_vels.py" name="encoder_to_vels"/>-->
+
+		<!--<node pkg="percept_generators" type="encoder_fwd_kinematics.py" name="encoder_fwd_kinematics"/>-->
+
+		<node if="$(arg use_kinect)" pkg="percept_generators" type="kinect_generator" name="kinect_generator">
+			<param name="min_pc_height" value="$(arg min_pc_height)" type="double"/>
+			<param name="max_pc_height" value="$(arg max_pc_height)" type="double"/>
+			<!--<param name="euclidean_cluster_tolerance" value="$(arg euclidean_cluster_tolerance)" type="double"/>
+			<param name="euclidean_min_cluster_size" value="$(arg euclidean_min_cluster_size)"/>	
+			<param name="euclidean_max_cluster_size" value="$(arg euclidean_max_cluster_size)" type="int"/>-->
+			<param name="voxel_size" value="$(arg voxel_size)" type="double"/>
+		</node>
+
+	</group>
+
+</launch>

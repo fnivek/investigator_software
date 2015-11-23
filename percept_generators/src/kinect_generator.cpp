@@ -64,7 +64,7 @@ object_extractor::object_extractor() :
 	ros::NodeHandle nh;
 	ros::NodeHandle private_nh("~");
 
-	raw_pc_sub_ = nh.subscribe<point_msg>("/camera/depth/points", 10, &object_extractor::CloudCb_, this);
+	raw_pc_sub_ = nh.subscribe<point_msg>("camera/depth/points", 10, &object_extractor::CloudCb_, this);
 
 	scene_pub_ = nh.advertise<point_msg>(nh.resolveName("scene_pc"), 10);
 
