@@ -6,8 +6,8 @@ import numpy as np
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Vector3
 
-MAX_LINEAR_VEL = 3
-MAX_ANGULAR_VEL = 5
+MAX_LINEAR_VEL = 0.2
+MAX_ANGULAR_VEL = 0.5
 
 def XYZArray(r):
     return np.array([r[0], r[1], r[2]])
@@ -40,7 +40,9 @@ class LeapController:
 
     def quadratic_map(self, pitch, roll):
         pitch, roll = self.linear_map(pitch, roll)
-        return pitch**2, roll**2
+        sign_p = np.sign(pitch)
+        sign_r = np.sign(roll)
+        return sign_p * (pitch**2), sign_r * (roll**2)
 
     def clip_values(self, pitch, roll):
         if pitch > 1:
@@ -85,11 +87,11 @@ class LeapController:
                 roll *= -1 * np.sign(palm_normal[0])
                 roll /= (-np.pi / 2)
                 roll += -1 * np.sign(palm_normal[0])
-
+                roll *= -1
 
                 # Map the values
                 pitch, roll = self.quadratic_map(pitch, roll)
-                print 'pitch: %f\t\t roll: %f' % (pitch, roll)
+                #print 'pitch: %f\t\t roll: %f' % (pitch, roll)
 
                 # Send out the twist
                 linear = Vector3()
