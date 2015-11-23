@@ -5,9 +5,11 @@ import Leap
 import numpy as np
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Vector3
+from collections import deque
 
 MAX_LINEAR_VEL = 0.2
 MAX_ANGULAR_VEL = 0.5
+MOVING_AVG_LENGTH = 10
 
 def XYZArray(r):
     return np.array([r[0], r[1], r[2]])
@@ -23,6 +25,9 @@ class LeapController:
             pass
 
         rospy.loginfo('Connected to Leap motion')
+
+        self.pitch_buf = deque([], maxlen = MOVING_AVG_LENGTH)
+        self.roll_buf = deque([], maxlen = MOVING_AVG_LENGTH)
 
         # Publishers
         self.pwm_pub = rospy.Publisher('twist', Twist, queue_size = 1)
@@ -93,6 +98,12 @@ class LeapController:
                 pitch, roll = self.quadratic_map(pitch, roll)
                 #print 'pitch: %f\t\t roll: %f' % (pitch, roll)
 
+                # Windowed avg
+                self.pitch_buf.append(pitch)
+                self.roll_buf.append(roll)
+                pitch = sum(self.pitch_buf) / len(self.pitch_buf)
+                roll = sum(self.roll_buf) / len(self.roll_buf)
+
                 # Send out the twist
                 linear = Vector3()
                 linear.x = pitch * MAX_LINEAR_VEL
@@ -105,6 +116,8 @@ class LeapController:
                     angular = angular))
             else:
                 # Publish 0 Twist
+                self.pitch_buf.append(0)
+                self.roll_buf.append(0)
                 self.pwm_pub.publish(Twist())
 
             self.update_rate.sleep()
