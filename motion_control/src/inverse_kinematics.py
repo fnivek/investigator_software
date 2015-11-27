@@ -7,6 +7,7 @@ signals for the MSP430 to set
 import rospy
 from geometry_msgs.msg import Twist
 from motion_control.msg import MotorAngularWheelVelocities
+from hardware_interface.msg import EncoderSpeed
 
 class InverseKinematics:
     def __init__(self):
@@ -15,9 +16,11 @@ class InverseKinematics:
       # Grab params
       self.wheel_base = rospy.get_param('/wheel_base', 0.3048) # 0.3048 m = 12 in
       self.wheel_radius = rospy.get_param('/wheel_radius', 0.06)
+      self.simulate = rospy.get_param('simulate', True)
 
       # Publishers
       self.wheel_ang_vel_pub = rospy.Publisher('motor_angular_wheel_velocities', MotorAngularWheelVelocities, queue_size = 1)
+      self.simulation_pub = rospy.Publisher('encoder_speed', EncoderSpeed, queue_size = 1)
 
       # Subscriber
       self.twist_sub = rospy.Subscriber('twist', Twist, self.twist_cb, queue_size = 1)
@@ -59,6 +62,15 @@ class InverseKinematics:
         MotorAngularWheelVelocities(
           left_angular_velocity = left_wheel, 
           right_angular_velocity = right_wheel))
+
+      if self.simulate:
+        self.sim(left_wheel, right_wheel)
+
+    def sim(self, left, right):
+      self.simulation_pub.publish(
+        EncoderSpeed(
+          left_motor = left,
+          right_motor = right))
 
 
 if __name__ == '__main__':
