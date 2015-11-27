@@ -7,9 +7,9 @@ from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Vector3
 from collections import deque
 
-MAX_LINEAR_VEL = 0.2
-MAX_ANGULAR_VEL = 0.5
-MOVING_AVG_LENGTH = 10
+MAX_LINEAR_VEL = 0.7
+MAX_ANGULAR_VEL = 1.
+MOVING_AVG_LENGTH = 3
 
 def XYZArray(r):
     return np.array([r[0], r[1], r[2]])
@@ -38,8 +38,8 @@ class LeapController:
         # Max pitch = 0.4, Min pitch = -0.4, 0 = 0
         # Max roll = 0.3, Min pitch = -0.3, 0 = 0
 
-        pitch /= 0.4
-        roll /= 0.3
+        pitch /= 0.7
+        roll /= 0.7
 
         return self.clip_values(pitch, roll)
 
