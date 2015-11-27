@@ -6,6 +6,8 @@ from rospy import ServiceException
 from hardware_interface.msg import MotorPWM, EncoderSpeed, CommSingleWrite, CommReadData
 from struct import pack, unpack
 
+FCPU = 2.44e6
+ENCODER_CLKS_TO_RADS_SEC = 2 * np.pi * FCPU / (898)
 encoder_speed_pub = rospy.Publisher('encoder_speed', EncoderSpeed, queue_size = 1)
 
 # pack up pwm signals
@@ -33,6 +35,10 @@ def read_encoder(resp):
         left_speed = -left_speed
     if(direction & 0x2):
         right_speed = -right_speed
+
+    # Convert to speeds
+    left_speed = (left_speed ** -1) * ENCODER_CLKS_TO_RADS_SEC
+    right_speed = (right_speed ** -1) * ENCODER_CLKS_TO_RADS_SEC
 
     encoder_speed_pub.publish(EncoderSpeed(left_motor = left_speed, right_motor = right_speed))
 

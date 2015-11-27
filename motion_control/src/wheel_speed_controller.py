@@ -11,8 +11,6 @@ import numpy as np
 NUM_MOTORS = 2
 LEFT = 0
 RIGHT = 1
-FCPU = 2.44e6
-ENCODER_CLKS_TO_RADS_SEC = 2 * np.pi * FCPU / (898)
 
 class Motor:
     NUM_OUTPUTS = 2
@@ -35,7 +33,7 @@ class Motor:
             if speed == 0xFFFF:
                 self.feedbacks.append(0)
             else:
-                self.feedbacks.append((speed**-1) * ENCODER_CLKS_TO_RADS_SEC)
+                self.feedbacks.append(speed)
 
     def calculate_error(self):
         # Average all feedbacks
