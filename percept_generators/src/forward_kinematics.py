@@ -6,19 +6,21 @@
 #	w - anular velocity about ICC
 import rospy
 import numpy as np
-from std_msgs.msg import Float64MultiArray
 import tf
 from hardware_interface.msg import EncoderSpeed
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Header
+from geometry_msgs.msg import Vector3, PoseWithCovariance, Pose, TwistWithCovariance, Twist, Point, Quaternion
 
 class node:
 	def __init__(self):
-		self.listener = tf.TransformListener()
 		self.last_time = 0
 		self.last_R = 0
 		self.last_w = 0
 		self.wheel_base = rospy.get_param('/wheel_base', 0.3048) # 0.3048 m = 12 in
 		self.wheel_radius = rospy.get_param('/wheel_radius', 0.06)
 
+		self.state_pub = rospy.Publisher('encoder_state', Odometry, queue_size = 1)
 		
 		self.motor_vel_sub = rospy.Subscriber('encoder_speed', EncoderSpeed, self.vels_cb, queue_size = 1)
 
@@ -59,6 +61,8 @@ class node:
 		# w * r = V (m/s)
 		Vl = msg.left_motor * self.wheel_radius
 		Vr = msg.right_motor * self.wheel_radius
+		Vx = (Vr + Vl) / 2
+		w = (Vr - Vl) / self.wheel_base
 
 		dpos_vec = np.matrix([[0.0], [0.0]])
 		dtheta = 0
@@ -67,8 +71,7 @@ class node:
 			dpos_vec[0] = Vl * time_step  
 		else:
 			# Instantanious values
-			R = (self.wheel_base * (Vl + Vr)) / (2 * (Vr - Vl))
-			w = (Vr - Vl) / self.wheel_base
+			R = self.wheel_base * Vx / (Vr - Vl)
 
 			R_avg = (R + self.last_R) / 2
 			w_avg = (w + self.last_w) / 2
@@ -85,28 +88,33 @@ class node:
 			#print dpos_vec
 			#print '[dx, dy, d_theta]: [%f, %f, %f]' % (dpos_vec.item(0), dpos_vec.item(1), dtheta)
 
-		# Transform cords
-		trans = [0,0,0]	#x y z
-		rot = [0,0,0,1] # x y z w
-		try:
-			(trans, rot) = self.listener.lookupTransform('/world', '/base_link', rospy.Time(0))
-		except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
-			rospy.logerr('TF error: %s' % e)
-			# TODO: make sure we don't reset our position on an error
-		trash, trash, frame_theta = tf.transformations.euler_from_quaternion(rot)
-		rotation = np.matrix([[np.cos(frame_theta), -1.0 * np.sin(frame_theta)],
-				   [np.sin(frame_theta), np.cos(frame_theta)]]) 
-		rotated_dpos_vec = rotation * dpos_vec
+		quat = tf.transformations.quaternion_from_euler(0, 0, dtheta)
 
-		rot = tf.transformations.quaternion_multiply(rot, tf.transformations.quaternion_from_euler(0, 0, dtheta))		
-		
-		# Set up a tf brodcaster
-		br = tf.TransformBroadcaster()
-		br.sendTransform((trans[0] + rotated_dpos_vec.item(0), trans[1] + rotated_dpos_vec.item(1), 0),
-						 rot,
-						 rospy.Time.now(),
-						 'base_link',
-						 'world')
+		# Publish the odom estimate
+		self.state_pub.publish(Odometry(
+			header = Header(
+				stamp = rospy.get_rostime(),
+				frame_id = 'base_link'),
+
+			child_frame_id = 'base_link',
+
+			pose = PoseWithCovariance(
+				pose = Pose(
+					position = Point(
+						x = dpos_vec[0],
+						y = dpos_vec[1]),
+					orientation = Quaternion(
+						x = quat[0],
+						y = quat[1],
+						z = quat[2],
+						w = quat[3]))),
+
+			twist = TwistWithCovariance(
+				twist = Twist(
+					linear = Vector3(
+						x = Vx),
+					angular = Vector3(
+						z = w)))))
 
 		#print '[dx\', dy\']: [%f, %f]' % (dx, dy)
 
