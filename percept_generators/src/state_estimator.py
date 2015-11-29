@@ -56,8 +56,8 @@ class StateEstimator:
         temp_pose = PoseStamped(
             header = msg.header,
             pose = msg.pose.pose)
-        # Reverse time far enough to ensure good tf data
-        temp_pose.header.stamp -= rospy.Duration(1.1/25.)
+        # Just use the most recent transform
+        temp_pose.header.stamp = rospy.Time()
 
         try:
             msg.pose.pose = (self.tf_listener.transformPose('/world', temp_pose)).pose
