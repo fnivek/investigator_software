@@ -19,7 +19,7 @@ class node:
 		self.last_time = 0
 		self.last_R = 0
 		self.last_w = 0
-		self.wheel_base = rospy.get_param('/wheel_base', 0.3048) # 0.3048 m = 12 in
+		self.wheel_base = rospy.get_param('/wheel_base', 0.381) # 0.381 m = 15 in
 		self.wheel_radius = rospy.get_param('/wheel_radius', 0.06)
 
 		self.state_pub = rospy.Publisher('encoder_state', Odometry, queue_size = 1)
@@ -74,7 +74,7 @@ class node:
 		w_avg = 0
 
 		if(abs(Vl - Vr) < SAME_FLOAT):
-			dpos_vec[0] = Vl * time_step  
+			dpos_vec[0] = Vx * time_step  
 		else:
 			# Instantanious values
 			R = self.wheel_base * Vx / (Vr - Vl)
