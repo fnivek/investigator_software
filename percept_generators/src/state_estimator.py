@@ -34,16 +34,13 @@ class StateEstimator:
         self.encoder_sub = rospy.Subscriber('encoder_state', Odometry, self.encoder_state_cb, queue_size = 1)
 
         # Timers
-        rospy.Timer(rospy.Duration(1./25.), self.update)
+        #rospy.Timer(rospy.Duration(1./25.), self.update)
 
     def update(self, event):
         # This is where states from encoders, IMU, or anything else would be fused
         #   into one world model
-        self.tf_broadcaster.sendTransform(self.state_trans,
-                                          self.state_rot,
-                                          rospy.Time.now(),
-                                          'base_link',
-                                          'world')
+        pass
+
 
     def encoder_state_cb(self, msg):
         # This function will temporarly just convert to world frame and publish
@@ -52,7 +49,7 @@ class StateEstimator:
             header = msg.header,
             pose = msg.pose.pose)
         # Reverse time far enough to ensure good tf data
-        temp_pose.header.stamp -= rospy.Duration(1.5/25.)
+        temp_pose.header.stamp -= rospy.Duration(1.1/25.)
 
         try:
             msg.pose.pose = (self.tf_listener.transformPose('/world', temp_pose)).pose
@@ -77,6 +74,12 @@ class StateEstimator:
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w
             ]
+
+        self.tf_broadcaster.sendTransform(self.state_trans,
+                                  self.state_rot,
+                                  rospy.Time.now(),
+                                  'base_link',
+                                  'world')
 
         #print '[dx\', dy\']: [%f, %f]' % (dx, dy)
 
