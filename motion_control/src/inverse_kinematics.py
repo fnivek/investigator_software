@@ -16,7 +16,7 @@ class InverseKinematics:
       # Grab params
       self.wheel_base = rospy.get_param('/wheel_base', 0.3048) # 0.3048 m = 12 in
       self.wheel_radius = rospy.get_param('/wheel_radius', 0.06)
-      self.simulate = rospy.get_param('simulate', True)
+      self.simulate = rospy.get_param('simulate', False)
 
       # Publishers
       self.wheel_ang_vel_pub = rospy.Publisher('motor_angular_wheel_velocities', MotorAngularWheelVelocities, queue_size = 1)
