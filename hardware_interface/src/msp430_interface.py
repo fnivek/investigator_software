@@ -5,6 +5,7 @@ from spi_registers import SPIRegister
 from rospy import ServiceException
 from hardware_interface.msg import MotorPWM, EncoderSpeed, CommSingleWrite, CommReadData
 from struct import pack, unpack
+import numpy as np
 
 FCPU = 2.44e6
 ENCODER_CLKS_TO_RADS_SEC = 2 * np.pi * FCPU / (898)
