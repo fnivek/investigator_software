@@ -12,6 +12,8 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 from geometry_msgs.msg import Vector3, PoseWithCovariance, Pose, TwistWithCovariance, Twist, Point, Quaternion
 
+SAME_FLOAT = 0.001
+
 class node:
 	def __init__(self):
 		self.last_time = 0
@@ -67,7 +69,11 @@ class node:
 		dpos_vec = np.matrix([[0.0], [0.0]])
 		dtheta = 0
 
-		if(Vl == Vr):
+		R = 0
+		R_avg = 0
+		w_avg = 0
+
+		if(abs(Vl - Vr) < SAME_FLOAT):
 			dpos_vec[0] = Vl * time_step  
 		else:
 			# Instantanious values
@@ -89,6 +95,14 @@ class node:
 			#print '[dx, dy, d_theta]: [%f, %f, %f]' % (dpos_vec.item(0), dpos_vec.item(1), dtheta)
 
 		quat = tf.transformations.quaternion_from_euler(0, 0, dtheta)
+
+		#test = np.linalg.norm(dpos_vec)
+		#if test > 5:
+		#	print 'Time step:', time_step
+		#	print msg
+		#	print 'Jump: ', test
+		#	print 'Ravg: ', R_avg
+		#	print 'Wavg: ', w_avg
 
 		# Publish the odom estimate
 		self.state_pub.publish(Odometry(
