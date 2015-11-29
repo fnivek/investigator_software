@@ -6,6 +6,7 @@ from geometry_msgs.msg import PoseStamped
 import numpy as np
 from collections import deque
 import tf
+import time
 
 # State esitimator takes in state estimations from several estimators in base_link
 #   Such as encoders and the IMU and combines them into one global state estimation
@@ -29,6 +30,13 @@ class StateEstimator:
         #self.state_changes = deque()
         self.state_trans = [0, 0, 0]
         self.state_rot = [0, 0, 0, 1]
+
+        time.sleep(1.0)
+        self.tf_broadcaster.sendTransform(self.state_trans,
+                                  self.state_rot,
+                                  rospy.Time.now(),
+                                  'base_link',
+                                  'world')
 
         # Subscribers
         self.encoder_sub = rospy.Subscriber('encoder_state', Odometry, self.encoder_state_cb, queue_size = 1)
