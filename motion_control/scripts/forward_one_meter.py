@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist, Vector3
+from geometry_msgs.msg import Twist
 import rospy
 import tf
 import numpy
