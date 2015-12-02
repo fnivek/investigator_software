@@ -14,9 +14,11 @@ class InverseKinematics:
       rospy.init_node('inverse_kinematics', anonymous = False)
 
       # Grab params
-      self.wheel_base = rospy.get_param('/wheel_base', 0.3048) # 0.3048 m = 12 in
-      self.wheel_radius = rospy.get_param('/wheel_radius', 0.06)
+      self.wheel_base = rospy.get_param('/wheel_base', 0.5) # 0.3048 m = 12 in
+      self.wheel_radius = rospy.get_param('/wheel_radius', 0.097)
       self.simulate = rospy.get_param('~simulate', False)
+      if self.simulate:
+        rospy.loginfo('Inverse kinematics in simulation mode')
 
       # Publishers
       self.wheel_ang_vel_pub = rospy.Publisher('motor_angular_wheel_velocities', MotorAngularWheelVelocities, queue_size = 1)

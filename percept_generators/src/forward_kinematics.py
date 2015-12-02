@@ -19,8 +19,8 @@ class node:
 		self.last_time = 0
 		self.last_R = 0
 		self.last_w = 0
-		self.wheel_base = rospy.get_param('/wheel_base', 0.381) # 0.381 m = 15 in
-		self.wheel_radius = rospy.get_param('/wheel_radius', 0.06)
+		self.wheel_base = rospy.get_param('/wheel_base', 0.5) # 0.381 m = 15 in
+		self.wheel_radius = rospy.get_param('/wheel_radius', 0.097)
 
 		self.state_pub = rospy.Publisher('encoder_state', Odometry, queue_size = 1)
 		
