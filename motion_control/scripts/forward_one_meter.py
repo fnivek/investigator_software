@@ -8,7 +8,7 @@ import numpy
 
 rospy.init_node('forward_one_meter', anonymous = False)
 
-twist_pub = rospy.Publisher('twist', Twist, queue_size = 1)
+twist_pub = rospy.Publisher('/motion_control/twist', Twist, queue_size = 1)
 
 current_pose = numpy.array([0, 0])
 final_pose = [1, 0]
@@ -43,6 +43,6 @@ def feedback_cb(msg):
 
     twist_pub.publish(t)
 
-rospy.Subscriber('state', Odometry, feedback_cb, queue_size = 1)
+rospy.Subscriber('/percepts/state', Odometry, feedback_cb, queue_size = 1)
 
 rospy.spin()
