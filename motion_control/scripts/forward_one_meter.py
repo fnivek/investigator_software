@@ -10,15 +10,15 @@ rospy.init_node('forward_one_meter', anonymous = False)
 
 twist_pub = rospy.Publisher('/motion_control/twist', Twist, queue_size = 1)
 
-current_pose = numpy.array([0, 0])
 final_pose = [1, 0]
 first = True
-Kv = 0.25
 
+error = 10
 
 def feedback_cb(msg):
     global first
     global final_pose
+    global error
     current_pose = numpy.array([msg.pose.pose.position.x, msg.pose.pose.position.y])
     if first:
         quat = [msg.pose.pose.orientation.x,
@@ -37,12 +37,15 @@ def feedback_cb(msg):
 
     error = numpy.linalg.norm(final_pose - current_pose)
 
-    t = Twist()
-    t.linear.x = Kv * error
+rospy.Subscriber('/percepts/state', Odometry, feedback_cb, queue_size = 1)
+while first:
+    pass
+t = Twist()
+t.linear.x = 0.25
 
-
+while error > 0.08:
     twist_pub.publish(t)
 
-rospy.Subscriber('/percepts/state', Odometry, feedback_cb, queue_size = 1)
+print error
 
-rospy.spin()
+twist_pub.publish(Twist())
