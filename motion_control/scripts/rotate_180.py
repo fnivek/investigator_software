@@ -10,16 +10,15 @@ rospy.init_node('rotate_180', anonymous = False)
 
 twist_pub = rospy.Publisher('/motion_control/twist', Twist, queue_size = 1)
 
-last_heading = 0
-delta_heading = 0
+error = 1e9
 first = True
-Kv = 1.0
+final_heading = 0
 
 
 def feedback_cb(msg):
     global first
-    global delta_heading
-    global last_heading
+    global error
+    global final_heading
 
     quat = [msg.pose.pose.orientation.x,
                 msg.pose.pose.orientation.y,
@@ -32,29 +31,21 @@ def feedback_cb(msg):
     current_heading = current_heading % (2 * numpy.pi)
 
     if first:
-        last_heading = current_heading
+        final_heading = (current_heading + numpy.pi) % (2 * numpy.pi)
         first = False
 
-        print 'At: ', current_heading, '\tMoving 2 pi rads'
+        print 'At: ', current_heading, '\tMoving to: ', final_heading
 
-    print 'current ', current_heading
-    print 'last ', last_heading
-    print 'diff ', current_heading - last_heading
+    #print 'current ', current_heading
 
-    delta_heading += current_heading - last_heading
-
-    print 'Cumulative: ', delta_heading
-
-    last_heading = current_heading
-
-    error = numpy.pi - delta_heading
-
-    t = Twist()
-    t.angular.z = Kv * error
-
-
-    twist_pub.publish(t)
+    error = abs(current_heading - final_heading)
 
 rospy.Subscriber('/percepts/state', Odometry, feedback_cb, queue_size = 1)
 
-rospy.spin()
+t = Twist()
+t.angular.z = 3
+
+while error > (5 * numpy.pi / 180):
+    twist_pub.publish(t)
+
+twist_pub.publish(Twist())
