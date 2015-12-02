@@ -1,0 +1,10 @@
+<launch>
+	<group ns="hardware_interface">
+		<!-- TODO: Add params -->
+		<node pkg="hardware_interface" type="comms.py" name="comms"/>
+		<node pkg="hardware_interface" type="msp430_interface.py" name="msp430_interface"/>
+		<!-- node pkg="hardware_interface" type="imu_interface.py" name="imu_interface"/-->
+
+	</group>
+
+</launch>

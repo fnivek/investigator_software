@@ -41,6 +41,10 @@
 			<param name="voxel_size" value="$(arg voxel_size)" type="double"/>
 		</node>
 
+		<!-- TODO: Add params -->
+		<node pkg="percept_generators" type="forward_kinematics.py" name="forward_kinematics"/>
+		<node pkg="percept_generators" type="state_estimator.py" name="state_estimator"/>
+
 	</group>
 
 </launch>

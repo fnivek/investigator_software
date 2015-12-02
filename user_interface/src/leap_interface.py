@@ -30,7 +30,7 @@ class LeapController:
         self.roll_buf = deque([], maxlen = MOVING_AVG_LENGTH)
 
         # Publishers
-        self.pwm_pub = rospy.Publisher('twist', Twist, queue_size = 1)
+        self.pwm_pub = rospy.Publisher('/motion_control/twist', Twist, queue_size = 1)
 
         self.update_rate = rospy.Rate(10)
 

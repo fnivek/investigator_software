@@ -20,7 +20,7 @@ class InverseKinematics:
 
       # Publishers
       self.wheel_ang_vel_pub = rospy.Publisher('motor_angular_wheel_velocities', MotorAngularWheelVelocities, queue_size = 1)
-      self.simulation_pub = rospy.Publisher('encoder_speed', EncoderSpeed, queue_size = 1)
+      self.simulation_pub = rospy.Publisher('/hardware_interface/encoder_speed', EncoderSpeed, queue_size = 1)
 
       # Subscriber
       self.twist_sub = rospy.Subscriber('twist', Twist, self.twist_cb, queue_size = 1)

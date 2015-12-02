@@ -1,0 +1,7 @@
+<launch>
+	<!-- TODO: Add params -->
+	<include file="$(find percept_generators)/launch/percept_generators.launch"/>
+	<include file="$(find hardware_interface)/launch/hardware_interface.launch"/>
+	<include file="$(find motion_control)/launch/motion_control.launch"/>
+
+</launch>

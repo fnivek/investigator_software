@@ -79,10 +79,10 @@ class WheelSpeedController:
         self.motors = [Motor(coefs[i]) for i in xrange(NUM_MOTORS)]
 
         # Publishers
-        self.motor_pwm_pub = rospy.Publisher('motor_pwm', MotorPWM, queue_size = 1)
+        self.motor_pwm_pub = rospy.Publisher('/hardware_interface/motor_pwm', MotorPWM, queue_size = 1)
 
         # Subscribers
-        self.feedback_sub = rospy.Subscriber('encoder_speed', EncoderSpeed, self.feedback_cb, queue_size = 1)
+        self.feedback_sub = rospy.Subscriber('/hardware_interface/encoder_speed', EncoderSpeed, self.feedback_cb, queue_size = 1)
         self.desired_sub = rospy.Subscriber('motor_angular_wheel_velocities', MotorAngularWheelVelocities, self.command_cb, queue_size = 1)
 
         rospy.Timer(rospy.Duration(1./25.), self.controller)

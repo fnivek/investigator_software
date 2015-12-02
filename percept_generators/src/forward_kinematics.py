@@ -24,7 +24,7 @@ class node:
 
 		self.state_pub = rospy.Publisher('encoder_state', Odometry, queue_size = 1)
 		
-		self.motor_vel_sub = rospy.Subscriber('encoder_speed', EncoderSpeed, self.vels_cb, queue_size = 1)
+		self.motor_vel_sub = rospy.Subscriber('/hardware_interface/encoder_speed', EncoderSpeed, self.vels_cb, queue_size = 1)
 
 	#Callback for motor angular velocities
 	# 
