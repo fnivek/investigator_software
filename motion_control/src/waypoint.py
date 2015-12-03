@@ -86,10 +86,14 @@ class Waypoint:
         delta = clip_angles(heading - zero_angle)                # Refer to paper
 
 
+        v = 0
+        w = 0
+        
         # Calculate control laws
-        v = self.kv * r
-        #     -kv    * (   k2   * (delta -    atan(    -k1    * theta)) + (1 + (   k1   / ( 1 + (   k1   * theta)^2 )) * sin(delta)));
-        w = -self.kv * (self.k2 * (delta - np.arctan(-self.k1 * theta)) + (1 + (self.k1 / ( 1 + (self.k1 * theta)**2)) * np.sin(delta)))
+        if r > 0.05:
+            v = self.kv * r
+            #     -kv    * (   k2   * (delta -    atan(    -k1    * theta)) + (1 + (   k1   / ( 1 + (   k1   * theta)^2 )) * sin(delta)));
+            w = -self.kv * (self.k2 * (delta - np.arctan(-self.k1 * theta)) + (1 + (self.k1 / ( 1 + (self.k1 * theta)**2)) * np.sin(delta)))
 
         # Publish 
         t = Twist()
