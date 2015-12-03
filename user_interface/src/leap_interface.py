@@ -3,13 +3,19 @@
 import rospy
 import Leap
 import numpy as np
-from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Vector3, Pose, Twist, PoseStamped
 from collections import deque
+from visualization_msgs.msg import Marker
+from std_msgs.msg import ColorRGBA
+import tf
+from motion_control.srv import WaypointCmd, WaypointCmdResponse, WaypointCmdRequest
 
 MAX_LINEAR_VEL = 0.7
 MAX_ANGULAR_VEL = 1.
 MOVING_AVG_LENGTH = 3
+
+def clip_angles(angle):
+    return ((angle + np.pi) % (2 * np.pi)) - np.pi
 
 def XYZArray(r):
     return np.array([r[0], r[1], r[2]])
@@ -17,6 +23,12 @@ def XYZArray(r):
 class LeapController:
     def __init__(self):
         rospy.init_node('leap_controller', anonymous=False)
+
+        self.update_hz = 10
+
+        self.mode = 'rc'
+        self.switch_in_progress = False
+
         self.iface = Leap.Controller()
 
         # TODO: Add timeout
@@ -26,13 +38,55 @@ class LeapController:
 
         rospy.loginfo('Connected to Leap motion')
 
+        self.iface.enable_gesture(Leap.Gesture.TYPE_SWIPE)
+        self.iface.enable_gesture(Leap.Gesture.TYPE_CIRCLE)
+        self.iface.config.set("Gesture.Circle.MinRadius", 30.0)
+        self.iface.config.save()
+
         self.pitch_buf = deque([], maxlen = MOVING_AVG_LENGTH)
         self.roll_buf = deque([], maxlen = MOVING_AVG_LENGTH)
 
+        # Tf listener
+        self.tf_listener = tf.TransformListener()
+
         # Publishers
         self.pwm_pub = rospy.Publisher('/motion_control/twist', Twist, queue_size = 1)
+        self.waypoint_pub = rospy.Publisher('/motion_control/waypoint', Pose, queue_size = 1)
+        self.waypoint_viz_pub = rospy.Publisher('waypoint_viz', Marker, queue_size = 1)
 
-        self.update_rate = rospy.Rate(10)
+        # Services
+        self.waypoint_cmd_proxy = rospy.ServiceProxy('/motion_control/waypoint_cmd', WaypointCmd)
+        
+        # Set up waypoint marker
+        self.holding_color = ColorRGBA(1, 0, 0.597, 1)
+        self.set_color = ColorRGBA(0.3984, 1, 0, 1)
+
+        self.waypoint_marker = Marker()
+        self.waypoint_marker.header.stamp = rospy.Time.now()
+        self.waypoint_marker.header.frame_id = 'world'
+        self.waypoint_marker.ns = 'user_interface'
+        self.waypoint_marker.id = 0
+        self.waypoint_marker.type = Marker.ARROW
+        self.waypoint_marker.action = Marker.ADD
+        self.waypoint_marker.pose = Pose()
+        self.waypoint_marker.scale.x = 0.4
+        self.waypoint_marker.scale.y = 0.1
+        self.waypoint_marker.scale.z = 0.1
+        self.waypoint_marker.color = self.set_color
+        #self.waypoint_marker.frame_locked = True
+
+        self.waypoint_turn_rate = 50 * (np.pi / (180 * self.update_hz))
+        self.cw_dead_zone = -0.45
+        self.ccw_dead_zone = 0.3
+        self.waypoint_heading = 0
+
+        self.placing_waypoint = False
+        self.waypoint_pose = Pose()
+        self.place_time = rospy.Time.now()                  # Time of last placed waypoint
+        self.wait_time_waypoint = rospy.Duration(0.5)    # How long after droping a waypoint to send cmd
+        self.waiting_to_set_waypoint = False
+
+        self.update_rate = rospy.Rate(self.update_hz)
 
     def linear_map(self, pitch, roll):
         # Max pitch = 0.4, Min pitch = -0.4, 0 = 0
@@ -62,63 +116,155 @@ class LeapController:
 
         return pitch, roll
 
+    def zero_all(self):
+        self.pwm_pub.publish(Twist())
+
+
+    def rc_cmd(self, hand):
+        palm_normal = XYZArray(hand.palm_normal)
+
+        y_hat = np.array([0, 1, 0])
+
+
+        # Get and normalize pitch of hand to [1,-1]
+        palm_yz = np.copy(palm_normal)
+        palm_yz[0] = 0
+        pitch = np.arccos(np.dot(palm_yz, y_hat) / np.linalg.norm(palm_yz))
+        if pitch < np.pi / 2:
+            return
+        pitch -= np.pi / 2
+        pitch *= np.sign(palm_normal[2])
+        pitch /= (-np.pi / 2)
+        pitch += np.sign(palm_normal[2])
+
+        # Get and normalize roll of hand to [1,-1]
+        palm_xy = palm_normal
+        palm_xy[2] = 0
+        roll = np.arccos(np.dot(palm_xy, y_hat) / np.linalg.norm(palm_xy))
+        if roll < np.pi / 2:
+            return
+        roll -= np.pi / 2
+        roll *= -1 * np.sign(palm_normal[0])
+        roll /= (-np.pi / 2)
+        roll += -1 * np.sign(palm_normal[0])
+        roll *= -1
+
+        # Map the values
+        pitch, roll = self.quadratic_map(pitch, roll)
+        #print 'pitch: %f\t\t roll: %f' % (pitch, roll)
+
+        # Windowed avg
+        self.pitch_buf.append(pitch)
+        self.roll_buf.append(roll)
+        pitch = sum(self.pitch_buf) / len(self.pitch_buf)
+        roll = sum(self.roll_buf) / len(self.roll_buf)
+
+        # Send out the twist
+        linear = Vector3()
+        linear.x = pitch * MAX_LINEAR_VEL
+
+        angular = Vector3()
+        angular.z = roll * MAX_ANGULAR_VEL
+
+        self.pwm_pub.publish(Twist(
+            linear = linear, 
+            angular = angular))
+
+    def waypoint_cmd(self, hand):
+        self.waypoint_marker.color = self.set_color
+
+        if hand.pinch_strength > 0.9:
+            self.placing_waypoint = True
+            self.waiting_to_set_waypoint = False
+            self.waypoint_marker.color = self.holding_color
+
+            self.waypoint_pose = Pose()
+            self.waypoint_pose.position.x = -(hand.palm_position.z / 60.0)
+            self.waypoint_pose.position.y = -(hand.palm_position.x / 60.0)
+
+            pitch = hand.palm_normal.z
+
+            if pitch > self.ccw_dead_zone or pitch < self.cw_dead_zone:
+                self.waypoint_heading = clip_angles(self.waypoint_heading + np.sign(pitch) * self.waypoint_turn_rate)
+
+            quat = tf.transformations.quaternion_from_euler(0, 0, self.waypoint_heading)
+            self.waypoint_pose.orientation.x = quat[0]
+            self.waypoint_pose.orientation.y = quat[1]
+            self.waypoint_pose.orientation.z = quat[2]
+            self.waypoint_pose.orientation.w = quat[3]
+
+            pt = PoseStamped()
+            pt.pose = self.waypoint_pose
+            pt.header.frame_id = '/base_link'
+            pt.header.stamp = rospy.Time()
+            try:
+                pt = self.tf_listener.transformPose('/world', pt)
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+                rospy.logerr('TF error: %s' % e)
+                return
+
+            self.waypoint_pose = pt.pose
+
+            self.waypoint_marker.pose = self.waypoint_pose
+
+        elif self.placing_waypoint:
+            # Done placing point start timer to see 
+            self.placing_waypoint = False
+            self.place_time = rospy.Time.now()
+            self.waiting_to_set_waypoint = True
+
+        elif self.waiting_to_set_waypoint:
+            if rospy.Time.now() - self.place_time > self.wait_time_waypoint:
+                self.waiting_to_set_waypoint = False
+                self.waypoint_pub.publish(self.waypoint_pose)
+
+
+    def switch_mode(self):
+        if self.mode == 'rc':
+            self.mode = 'waypoint'
+            self.waypoint_cmd_proxy(True)
+        else:
+            self.mode = 'rc'
+            self.waypoint_cmd_proxy(False)
+
+        self.zero_all()
+
+        rospy.loginfo('Switch to %s mode' % self.mode)
+
     def run(self):
         while not rospy.is_shutdown():
             hands = self.iface.frame().hands
-            if len(hands) is 1:
-                palm_normal = XYZArray(hands.leftmost.palm_normal)
+            gestures = self.iface.frame().gestures()
 
-                y_hat = np.array([0, 1, 0])
-
-
-                # Get and normalize pitch of hand to [1,-1]
-                palm_yz = np.copy(palm_normal)
-                palm_yz[0] = 0
-                pitch = np.arccos(np.dot(palm_yz, y_hat) / np.linalg.norm(palm_yz))
-                if pitch < np.pi / 2:
-                    continue
-                pitch -= np.pi / 2
-                pitch *= np.sign(palm_normal[2])
-                pitch /= (-np.pi / 2)
-                pitch += np.sign(palm_normal[2])
-
-                # Get and normalize roll of hand to [1,-1]
-                palm_xy = palm_normal
-                palm_xy[2] = 0
-                roll = np.arccos(np.dot(palm_xy, y_hat) / np.linalg.norm(palm_xy))
-                if roll < np.pi / 2:
-                    continue
-                roll -= np.pi / 2
-                roll *= -1 * np.sign(palm_normal[0])
-                roll /= (-np.pi / 2)
-                roll += -1 * np.sign(palm_normal[0])
-                roll *= -1
-
-                # Map the values
-                pitch, roll = self.quadratic_map(pitch, roll)
-                #print 'pitch: %f\t\t roll: %f' % (pitch, roll)
-
-                # Windowed avg
-                self.pitch_buf.append(pitch)
-                self.roll_buf.append(roll)
-                pitch = sum(self.pitch_buf) / len(self.pitch_buf)
-                roll = sum(self.roll_buf) / len(self.roll_buf)
-
-                # Send out the twist
-                linear = Vector3()
-                linear.x = pitch * MAX_LINEAR_VEL
-
-                angular = Vector3()
-                angular.z = roll * MAX_ANGULAR_VEL
-
-                self.pwm_pub.publish(Twist(
-                    linear = linear, 
-                    angular = angular))
+            if self.mode == 'rc':
+                if len(hands) is 1:
+                    self.rc_cmd(hands.leftmost)
+                else:
+                    # Publish 0 Twist
+                    self.pitch_buf.append(0)
+                    self.roll_buf.append(0)
+                    self.pwm_pub.publish(Twist())
             else:
-                # Publish 0 Twist
-                self.pitch_buf.append(0)
-                self.roll_buf.append(0)
-                self.pwm_pub.publish(Twist())
+                if len(hands) is 1:
+                    self.waypoint_cmd(hands.leftmost)
+
+                self.waypoint_marker.header.stamp = rospy.Time()
+                self.waypoint_viz_pub.publish(self.waypoint_marker)
+
+            # mode switch logic
+            circle_detected = False
+            if len(hands) is 2:
+                circle_detected = False
+                if len(gestures) != 0:
+                    for gesture in gestures:
+                        if gesture.type == Leap.Gesture.TYPE_CIRCLE:
+                            # Circle gesture detected
+                            circle_detected = True
+            if circle_detected:
+                self.switch_in_progress = True
+            elif self.switch_in_progress:
+                self.switch_in_progress = False
+                self.switch_mode()
 
             self.update_rate.sleep()
 

@@ -1,0 +1,4 @@
+# This service lets you turn waypoint mode off, and on
+bool on
+----
+bool success

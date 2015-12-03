@@ -3,6 +3,7 @@
 		<!-- TODO: Add params -->
 		<node pkg="motion_control" type="inverse_kinematics.py" name="inverse_kinematics"/>
 		<node pkg="motion_control" type="wheel_speed_controller.py" name="wheel_speed_controller"/>
+		<node pkg="motion_control" type="waypoint.py" name="waypoint"/>
 	</group>
 
 </launch>

@@ -3,6 +3,7 @@
 import rospy
 from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
+from motion_control.srv import WaypointCmd, WaypointCmdResponse, WaypointCmdRequest
 import numpy as np
 import tf
 
@@ -41,9 +42,14 @@ class Waypoint:
         self.goal_pos = np.array([0,0])
         self.goal_heading = 0
 
+        self.current_pos = np.array([0,0])
+        self.current_heading = 0
+
         self.kv = rospy.get_param('kv', 0.5)
         self.k1 = rospy.get_param('k1', 0.5)
         self.k2 = rospy.get_param('k2', 10.)
+
+        self.on = False
 
         # Publishers
         self.twist_pub = rospy.Publisher('twist', Twist, queue_size = 1)
@@ -51,6 +57,23 @@ class Waypoint:
         # Subscribers
         self.goal_sub = rospy.Subscriber('waypoint', Pose, self.goal_cb, queue_size = 1)
         self.feedback_sub = rospy.Subscriber('/percepts/state', Odometry, self.feedback_cb, queue_size = 1)
+
+        # Services
+        rospy.Service('waypoint_cmd', WaypointCmd, self.waypoint_cmd_cb)
+
+    def waypoint_cmd_cb(self, req):
+        self.on = req.on
+        if self.on:
+            # Zero the waypoint
+            self.goal_pos = self.current_pos
+            self.goal_heading = self.current_heading
+        else:
+            # Send zero twist
+            self.twist_pub.publish(Twist())
+
+        resp = WaypointCmdResponse()
+        resp.success = True
+        return resp
 
     def goal_cb(self, msg):
         self.goal_pos = np.array([msg.position.x,
@@ -64,26 +87,29 @@ class Waypoint:
             ))
 
     def feedback_cb(self, feedback):
-        current_pos = np.array([feedback.pose.pose.position.x,
+        self.current_pos = np.array([feedback.pose.pose.position.x,
                                 feedback.pose.pose.position.y])
 
         # Heading is between -pi and pi
-        trash, trash, heading = tf.transformations.euler_from_quaternion((
+        trash, trash, self.current_heading = tf.transformations.euler_from_quaternion((
             feedback.pose.pose.orientation.x,
             feedback.pose.pose.orientation.y,
             feedback.pose.pose.orientation.z,
             feedback.pose.pose.orientation.w
             ))
 
-        to_goal = self.goal_pos - current_pos
+        if not self.on:
+            return
+
+        to_goal = self.goal_pos - self.current_pos
         # World angle coresponding to 0 angle in the polar cordinate system defined above 
         zero_angle = np.arctan2(to_goal[1], to_goal[0]) # [-pi, pi]
              
 
         # Calculate state
-        r = np.linalg.norm(to_goal)                              # Distance to goal
-        theta = clip_angles(self.goal_heading - zero_angle)      # Refer to paper
-        delta = clip_angles(heading - zero_angle)                # Refer to paper
+        r = np.linalg.norm(to_goal)                                     # Distance to goal
+        theta = clip_angles(self.goal_heading - zero_angle)             # Refer to paper
+        delta = clip_angles(self.current_heading - zero_angle)          # Refer to paper
 
 
         v = 0
