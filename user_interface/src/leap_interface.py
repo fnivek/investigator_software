@@ -39,7 +39,7 @@ class LeapController:
         rospy.loginfo('Connected to Leap motion')
 
         self.iface.enable_gesture(Leap.Gesture.TYPE_SWIPE)
-        self.iface.enable_gesture(Leap.Gesture.TYPE_KEY_TAP)
+        #self.iface.enable_gesture(Leap.Gesture.TYPE_KEY_TAP)
         self.iface.enable_gesture(Leap.Gesture.TYPE_CIRCLE)
         self.iface.config.set("Gesture.Circle.MinRadius", 30.0)
         self.iface.config.save()
@@ -59,10 +59,10 @@ class LeapController:
         self.waypoint_cmd_proxy = rospy.ServiceProxy('/motion_control/waypoint_cmd', WaypointCmd)
         
         # Set up waypoint marker
-        self.placing_color = ColorRGBA(1, 0, 0.597, 1)
-        self.set_color = ColorRGBA(0.3984, 1, 0, 1)
-        self.waiting_color = ColorRGBA(1, 1, 0, 1)
-        self.confirm_color = ColorRGBA(0, 1, 0.797, 1)
+        self.placing_color = ColorRGBA(1, 0, 0.597, 0.5)
+        self.set_color = ColorRGBA(0.3984, 1, 0, 0.5)
+        self.waiting_color = ColorRGBA(1, 1, 0, 0.5)
+        self.confirm_color = ColorRGBA(0, 1, 0.797, 0.5)
 
         self.waypoint_marker = Marker()
         self.waypoint_marker.header.stamp = rospy.Time.now()
@@ -72,9 +72,9 @@ class LeapController:
         self.waypoint_marker.type = Marker.ARROW
         self.waypoint_marker.action = Marker.ADD
         self.waypoint_marker.pose = Pose()
-        self.waypoint_marker.scale.x = 0.4
-        self.waypoint_marker.scale.y = 0.1
-        self.waypoint_marker.scale.z = 0.1
+        self.waypoint_marker.scale.x = 0.2
+        self.waypoint_marker.scale.y = 0.05
+        self.waypoint_marker.scale.z = 0.05
         self.waypoint_marker.color = self.set_color
         #self.waypoint_marker.frame_locked = True
 
@@ -86,7 +86,7 @@ class LeapController:
         self.waypoint_pose = Pose()
         self.place_time = rospy.Time.now()                  # Time of last placed waypoint
         self.wait_time_waypoint = rospy.Duration(0.5)    # How long after droping a waypoint to send cmd
-        self.waypoint_placeable_radius = 3.0
+        self.waypoint_placeable_radius = 6.0
 
         self.waypoint_state = 'idle'
 
@@ -189,8 +189,8 @@ class LeapController:
             self.waypoint_state = 'placing'
 
             self.waypoint_pose = Pose()
-            self.waypoint_pose.position.x = -(hand.palm_position.z / 60.0)
-            self.waypoint_pose.position.y = -(hand.palm_position.x / 60.0)
+            self.waypoint_pose.position.x = -(hand.palm_position.z / 30.0)
+            self.waypoint_pose.position.y = -(hand.palm_position.x / 30.0)
 
             pitch = hand.palm_normal.z
 
@@ -218,12 +218,12 @@ class LeapController:
                 self.waiting_to_set_waypoint = False
 
         elif self.waypoint_state == 'confirm':
-            key_tap = False
+            swipe = False
             for gesture in gestures:
-                if gesture.type == Leap.Gesture.TYPE_KEY_TAP:
-                    key_tap = True
+                if gesture.type == Leap.Gesture.TYPE_SWIPE:
+                    swipe = True
 
-            if key_tap:
+            if swipe:
                 self.waypoint_pub.publish(self.waypoint_pose)
                 self.waypoint_state = 'idle'
 
@@ -287,12 +287,16 @@ class LeapController:
                 else:
                     self.waypoint_state = 'idle'
 
-                for gesture in gestures:
-                    if gesture.type == Leap.Gesture.TYPE_SWIPE:
-                        self.waypoint_state = 'idle'
-                        self.waypoint_cmd_proxy(True)
-                        self.waypoint_pose = Pose()
-                        self.convert_pose('/base_link', '/world')
+                """
+                if self.waypoint_state != 'confirm':
+                    for gesture in gestures:
+                        if gesture.type == Leap.Gesture.TYPE_SWIPE:
+                            print 'Clear'
+                            self.waypoint_state = 'idle'
+                            self.waypoint_cmd_proxy(True)
+                            self.waypoint_pose = Pose()
+                            self.convert_pose('/base_link', '/world')
+                """
 
                 self.draw_waypoint()
 
