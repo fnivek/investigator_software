@@ -41,7 +41,7 @@ class Waypoint:
         self.goal_pos = np.array([0,0])
         self.goal_heading = 0
 
-        self.kv = rospy.get_param('kv', 0.25)
+        self.kv = rospy.get_param('kv', 0.5)
         self.k1 = rospy.get_param('k1', 0.5)
         self.k2 = rospy.get_param('k2', 10.)
 
@@ -88,7 +88,7 @@ class Waypoint:
 
         v = 0
         w = 0
-        
+
         # Calculate control laws
         if r > 0.05:
             v = self.kv * r
