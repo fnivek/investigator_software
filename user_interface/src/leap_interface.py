@@ -39,6 +39,7 @@ class LeapController:
         rospy.loginfo('Connected to Leap motion')
 
         self.iface.enable_gesture(Leap.Gesture.TYPE_SWIPE)
+        self.iface.enable_gesture(Leap.Gesture.TYPE_KEY_TAP)
         self.iface.enable_gesture(Leap.Gesture.TYPE_CIRCLE)
         self.iface.config.set("Gesture.Circle.MinRadius", 30.0)
         self.iface.config.save()
@@ -58,8 +59,10 @@ class LeapController:
         self.waypoint_cmd_proxy = rospy.ServiceProxy('/motion_control/waypoint_cmd', WaypointCmd)
         
         # Set up waypoint marker
-        self.holding_color = ColorRGBA(1, 0, 0.597, 1)
+        self.placing_color = ColorRGBA(1, 0, 0.597, 1)
         self.set_color = ColorRGBA(0.3984, 1, 0, 1)
+        self.waiting_color = ColorRGBA(1, 1, 0, 1)
+        self.confirm_color = ColorRGBA(0, 1, 0.797, 1)
 
         self.waypoint_marker = Marker()
         self.waypoint_marker.header.stamp = rospy.Time.now()
@@ -80,11 +83,12 @@ class LeapController:
         self.ccw_dead_zone = 0.3
         self.waypoint_heading = 0
 
-        self.placing_waypoint = False
         self.waypoint_pose = Pose()
         self.place_time = rospy.Time.now()                  # Time of last placed waypoint
         self.wait_time_waypoint = rospy.Duration(0.5)    # How long after droping a waypoint to send cmd
-        self.waiting_to_set_waypoint = False
+        self.waypoint_placeable_radius = 3.0
+
+        self.waypoint_state = 'idle'
 
         self.update_rate = rospy.Rate(self.update_hz)
 
@@ -170,13 +174,19 @@ class LeapController:
             linear = linear, 
             angular = angular))
 
-    def waypoint_cmd(self, hand):
-        self.waypoint_marker.color = self.set_color
+    def waypoint_cmd(self, hand, gestures):
+        pos = np.array([-(hand.palm_position.z / 60.0)
+                        -(hand.palm_position.x / 60.0)])
+
+        r = np.linalg.norm(pos)
+
+        if r > self.waypoint_placeable_radius:
+            self.mode = 'idle'
+            return
+
 
         if hand.pinch_strength > 0.9:
-            self.placing_waypoint = True
-            self.waiting_to_set_waypoint = False
-            self.waypoint_marker.color = self.holding_color
+            self.waypoint_state = 'placing'
 
             self.waypoint_pose = Pose()
             self.waypoint_pose.position.x = -(hand.palm_position.z / 60.0)
@@ -193,30 +203,57 @@ class LeapController:
             self.waypoint_pose.orientation.z = quat[2]
             self.waypoint_pose.orientation.w = quat[3]
 
-            pt = PoseStamped()
-            pt.pose = self.waypoint_pose
-            pt.header.frame_id = '/base_link'
-            pt.header.stamp = rospy.Time()
-            try:
-                pt = self.tf_listener.transformPose('/world', pt)
-            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
-                rospy.logerr('TF error: %s' % e)
-                return
+            self.convert_pose('/base_link', '/world')
 
-            self.waypoint_pose = pt.pose
-
-            self.waypoint_marker.pose = self.waypoint_pose
-
-        elif self.placing_waypoint:
+        # State transition from placing to waiting
+        elif self.waypoint_state == 'placing':
+            self.waypoint_state = 'waiting'
             # Done placing point start timer to see 
-            self.placing_waypoint = False
             self.place_time = rospy.Time.now()
-            self.waiting_to_set_waypoint = True
 
-        elif self.waiting_to_set_waypoint:
+        # Wait self.wait_time_waypoint seconds
+        elif self.waypoint_state == 'waiting':
             if rospy.Time.now() - self.place_time > self.wait_time_waypoint:
+                self.waypoint_state = 'confirm'
                 self.waiting_to_set_waypoint = False
+
+        elif self.waypoint_state == 'confirm':
+            key_tap = False
+            for gesture in gestures:
+                if gesture.type == Leap.Gesture.TYPE_KEY_TAP:
+                    key_tap = True
+
+            if key_tap:
                 self.waypoint_pub.publish(self.waypoint_pose)
+                self.waypoint_state = 'idle'
+
+    def convert_pose(self, from_frame, to_frame):
+        pt = PoseStamped()
+        pt.pose = self.waypoint_pose
+        pt.header.frame_id = from_frame
+        pt.header.stamp = rospy.Time()
+        try:
+            pt = self.tf_listener.transformPose(to_frame, pt)
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+            rospy.logerr('TF error: %s' % e)
+            return False
+
+        self.waypoint_pose = pt.pose        
+        return True
+
+    def draw_waypoint(self):
+        if self.waypoint_state is 'idle':
+            self.waypoint_marker.color = self.set_color
+        elif self.waypoint_state is 'placing':
+            self.waypoint_marker.color = self.placing_color
+        elif self.waypoint_state is 'waiting':
+            self.waypoint_marker.color = self.waiting_color
+        elif self.waypoint_state is 'confirm':
+            self.waypoint_marker.color = self.confirm_color
+
+        self.waypoint_marker.pose = self.waypoint_pose
+        self.waypoint_marker.header.stamp = rospy.Time()
+        self.waypoint_viz_pub.publish(self.waypoint_marker)
 
 
     def switch_mode(self):
@@ -246,10 +283,19 @@ class LeapController:
                     self.pwm_pub.publish(Twist())
             else:
                 if len(hands) is 1:
-                    self.waypoint_cmd(hands.leftmost)
+                    self.waypoint_cmd(hands.leftmost, gestures)
+                else:
+                    self.waypoint_state = 'idle'
 
-                self.waypoint_marker.header.stamp = rospy.Time()
-                self.waypoint_viz_pub.publish(self.waypoint_marker)
+                for gesture in gestures:
+                    if gesture.type == Leap.Gesture.TYPE_SWIPE:
+                        self.waypoint_state = 'idle'
+                        self.waypoint_cmd_proxy(True)
+                        self.waypoint_pose = Pose()
+                        self.convert_pose('/base_link', '/world')
+
+                self.draw_waypoint()
+
 
             # mode switch logic
             circle_detected = False
